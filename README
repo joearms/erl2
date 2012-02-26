@@ -1,0 +1,309 @@
+Announce
+
+Erl2 - a program generator for a new dialect of erlang
+
+Download from:
+
+Please note: This is a prototype and is not of production quality
+
+
+Rational
+
+There are two types of thing in Erlang. Forms and Expressions 
+and the two don't mix.
+
+The shell is an expression evaluator. The shell reads an expression
+evaluates it and prints the result.
+
+A module is a sequence of forms. The compiler takes a sequence of forms
+and compiles this into an object file.
+
+You can't put forms in shell because they are not expressions. And you
+can't put expressions in a module because they are not forms.
+
+This is a mess - in many other languages the input to the shell
+is the same as the input to the compiler - but not in Erlang.
+
+There is a fix to this. "All" you have to to is define a form to be an expression.
+This needs a small syntactic change to the language.
+
+Suppose we add a new syntactic form:
+
+    def fac = fun(0) -> 1; fun(N) -> N*fac(N-1) end.
+
+But we define this to be an expression with a side effect. It's value
+can be anything we like (say true). But it has a side effect. The side effect
+is to define the factorial function.
+
+With this change we could write (in the shell):
+
+   > def fac = fun(0) -> 1; fun(N) -> N*fac(N-1) end.
+   true.
+   > fac(5).
+   120
+
+With this and a few other changes the shell, modules, and escript become
+more or less idential.
+
+To test this I have modified the erlang grammar, and the evaluator
+I have also added letrec's and a fixed a few other small things
+that annoyed me.
+
+%% This is an erl2 script
+
+> cat test.erl2
+
+%% hello world
+
+def hello() -> io:format("Hello world~n") end.
+hello().
+
+def test(N) -> io:format("Passing test ~p~n",[N]) end.
+def print(X) -> io:format("~p~n", [X]) end.
+
+test(1).
+
+print("factorial defined as a fun").
+
+def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+
+print("Unit test of factorial").
+
+120 = fac(5).
+
+print("Print a large factorial").
+
+print(fac(50)).
+test(3).
+
+print("define factorial using a fun").
+
+def fac1 = fun(0) -> 1;(N) -> N*fac1(N-1) end.
+print(fac1(50)).
+
+test(4).
+
+beginFunc f1/1 end.
+  %% f1 is a local fucntion - that is in the export list
+  %% so it will be exported
+
+  def f1(X) -> {f1,X} end.
+
+  {f1,123} = f1(123).
+
+  shell:test(5).      %% test(N) would mean in the local scope
+                      %% so we have to call this shell:test()
+ 
+  %% define a local function
+  
+  def local(X) -> {local, X} end.
+  {local,222} = local(222).
+  shell:test(7).
+
+endFunc.
+
+%% Test that I can call the exported function
+
+{f1, a} = f1(a).
+test(8).
+
+%% test that calling the local function will fail
+
+{'EXIT', _} = (catch local(222)).
+test(9).
+
+%% Now make two functions both using the
+%% same auxilliary functions to test name hiding is correct
+%% BOTH of these use the same auxilliary function
+
+beginFunc f2/1 end.
+ def f2(X) -> foo(X) end.
+ def foo(X) -> {f2foo, X} end.     %% foo is not exported
+endFunc.
+
+beginFunc f3/1 end.
+ def foo(X) -> {f3foo, X} end.    %% foo is not exported
+ def f3(X) -> foo(X) end.
+endFunc.
+
+{f2foo,a} = f2(a).	
+{f3foo,a} = f3(a).
+test(10).
+
+%% add unit tests inside a function definition
+
+beginFunc f4/1 end.
+ def foo(X,Y) -> {f3foo, X+Y} end.    %% foo is not exported
+ {f3foo,5} = foo(2,3).
+ def f3(X) -> foo(1,X) end.
+ {f3foo,6} = f3(5).
+endFunc.
+
+test(11).
+
+print("Modules").
+
+beginMod mod1.
+
+defExports a/1 b/2 c/3 end.  %% ignored for now
+
+ def test(N) -> io:format("Passing local test in mod1:~p~n",[N]) end.
+
+ def a() -> {mod1,a} end.
+ {mod1, a} = a().
+ shell:test(12).
+
+ def a(X) -> {mod1,a,X} end.
+ {mod1, a, 12} = a(12).
+
+ shell:test(13).  
+ test(14).
+
+endMod mod1.
+
+print("Testing that we can call functions in a module from outside").
+
+{mod1, a, 12} = mod1:a(12).	
+test(15).
+
+{'EXIT', _} = (catch mod1:b(12)).
+test(16).
+
+%% Mod with private functions
+
+beginMod mod2.
+
+defExports a/1 b/2 c/3 end.  %% ignored for now
+
+ def test(N) -> io:format("Passing local test ~p in mod2~n",[N]) end.
+ test(17).
+
+ beginFunc a/1 end.
+    def a(X) -> b(X) end.
+    def b(X) -> {mod2,b,X} end.
+ endFunc.
+
+ test(18).
+
+ {mod2,b,123} = a(123).
+ test(19).
+
+endMod mod2.
+ 
+{mod2,b,123} = mod2:a(123).
+test(20).
+
+print("Meta programming ...").
+
+%% We can bind variable *OUTSIDE* a module and
+%% use them *inside* the module
+
+F25 = fac(25).
+
+beginMod mod3.
+ defExports a/1 end.  %% ignored for now
+
+ def a(N) -> F25 + N end.
+
+endMod mod3.
+
+print(mod3:a(10)).
+
+print("Just imagine what you could do with this ...").
+
+print("More fancy stuff").
+
+%% We can do unit tests *inside the module*
+%% If the unit tests fail - we crash and the module will not be generated
+
+beginMod mod4.
+ 
+ defExports fac/1 end. 
+ def fac(0) -> 1; fac(N) -> N*fac(N-1) end.
+ 
+ %% unit tests
+ 120 = fac(5).
+ shell:print("unit test worked").
+
+endMod mod4.
+
+test(21).
+
+print("Horray - everything worked dump the results into a file
+       which we can compile later").
+
+--------------------------------------------------------------------
+
+We can run this as follows:
+
+./erl2 tests.erl2
+Hello world
+Passing test 1
+"factorial defined as a fun"
+"Unit test of factorial"
+"Print a large factorial"
+30414093201713378043612608166064768844377641568960512000000000000
+Passing test 3
+"define factorial using a fun"
+30414093201713378043612608166064768844377641568960512000000000000
+Passing test 4
+Passing test 5
+Passing test 7
+Passing test 8
+** undefined function:{local,1}
+Passing test 9
+Passing test 10
+Passing test 11
+"Modules"
+Passing test 12
+Passing test 13
+Passing local test in mod1:14
+"Testing that we can call functions in a module from outside"
+Passing test 15
+Passing test 16
+Passing local test 17 in mod2
+Passing local test 18 in mod2
+Passing local test 19 in mod2
+Passing test 20
+"Meta programming ..."
+15511210043330985984000010
+"Just imagine what you could do with this ..."
+"More fancy stuff"
+"unit test worked"
+Passing test 21
+"Horray - everything worked dump the results into a file\n       which we can compile later"
+Created:"all.gen"
+Success
+
+Note1: The output is in all.gen
+       This contains sufficient information to build all the modules
+       defined in the script - or they can be built into a single module
+
+Note2: If unit tests fail then no code is generated.
+
+       This is rather nice - the compiler will not compile a file
+       unless it is passes the unit tests.
+
+       Normally we do this:
+
+          1) compile
+          2) test
+
+        Now we do this:
+
+          1) test
+          2) compile
+          3) nothing - don't need to do the unit tests -
+
+Note3: Erl2 has no macros - they are not necessay 
+       the section called metaprogramming above explains this
+
+Have fun ...
+
+
+
+
+
+
+
+
