@@ -1,0 +1,9 @@
+*~
+*.tmp
+erl_parse.erl
+.eunit/*
+deps/*
+ebin
+priv/*
+*.o
+*.beam
