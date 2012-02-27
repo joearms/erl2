@@ -1,0 +1,20 @@
+%% This module will be correctly compiled
+%% since fac(5) *is* 120
+%% Now go and look at example3.erl2
+
+
+beginMod mod2.
+ defExports fac/1 end.
+
+ def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+ 120 = fac(5).
+
+endMod mod2.
+
+io:format("mod2:fac(50)=~p~n",[mod2:fac(50)]).
+
+%% sample output
+%% ./erl2 example2.erl2
+%% mod2:fac(50)=30414093201713378043612608166064768844377641568960512000000000000
+%% Created:"all.gen"
+%% Success

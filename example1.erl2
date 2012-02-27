@@ -1,0 +1,24 @@
+%% Example1:
+%%   factorial(25) is assumed to take a long time to compute
+%%   In the generated module mod1.erl
+%%   we import the result of the earlier computation
+
+def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+
+F25 = fac(25).
+
+beginMod mod1.
+ defExports a/1 end.
+
+ def a(N) -> F25 + N end.
+
+endMod mod1.
+
+io:format("mod1:a(10)=~p~n",[mod1:a(10)]).
+
+%% Sample output
+
+%% $./erl2 example1.erl2
+%% mod1:a(10)=15511210043330985984000010
+%% Created:"all.gen"
+%% Success

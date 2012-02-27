@@ -1,0 +1,19 @@
+%% This module will not produce any code
+%% since fac(5) *is not* 100
+%% The unit test fails
+
+
+beginMod mod3.
+ defExports fac/1 end.
+
+ def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+ 100 = fac(5).
+
+endMod mod3.
+
+io:format("mod3:fac(50)=~p~n",[mod3:fac(50)]).
+
+%% Sample output:
+%% ./erl2 example3.erl2
+%% Error:{{badmatch,120},[{erl_eval,expr,3,[]}]}
+%% Compile failed
