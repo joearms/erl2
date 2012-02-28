@@ -28,6 +28,8 @@
 
 %% Is used by standalone Erlang (escript).
 %% Also used by shell.erl.
+-export([resolve_unqualified_call/2]).
+
 -export([match_clause/4]).
 
 -export([check_command/2, fun_data/1]).
@@ -433,39 +435,46 @@ expr({define2,
 expr({define3,Attr}, Bs0, _, _, _) ->
     save({attribute, get(context), Attr}),
     {value, true, Bs0};
+
+expr({defMods, L}, Bs0, _, _, _) ->
+    Mods = [M || {atom,_,M} <- L],
+    put(defining_modules, Mods),
+    {value, true, Bs0};
+
 expr({beginFunc,Args}, Bs0, _, _, _) ->
-    Context = get(context),
     {{atom,Ln,_},_} = hd(Args),
-    case Context of
-	[H|_] when is_atom(H) ->
-	    Args1 = [{A,I} || {{atom,_,A},{integer,_,I}} <- Args],
-	    put(context, [{defun,Ln,Args1}|Context]),
-	    {value, true, Bs0};
-	_ ->
-	    erlang:error({error,line,Ln,illegal,beginFunc})
-    end;
+    Args1 = [{A,I} || {{atom,_,A},{integer,_,I}} <- Args],
+    put(current_function, {Ln,Args1}),
+    {value, true, Bs0};
+
 expr({defExport,L}, Bs, _, _, _) ->
     Es = [{F,N} || {{atom,_,F},{integer,_,N}} <- L],
     save({export,get(context), Es}),
     {value, Es, Bs};
 expr(endFunc, Bs0, _, _, _) ->
-    windup_func(aLn, aName),
-    put1(current_function, '$$top$$'),
+    put1(current_function, none),
     {value, true, Bs0};
-expr({beginMod,{atom,Ln,Name}}, Bs0, _, _, _) ->
-    case get(context) of
-	[shell] ->
-	    put(context, [Name,shell]);
+
+expr({addMod,{atom,Ln,Name}}, Bs0, _, _, _) ->
+    case get(current_function) of
+	none ->
+	    put(current_module, Name),
+	    {value, true, Bs0};
+	   _ ->
+	    erlang:error({error,line,Ln,cannotChangeModinFunc})
+    end;
+
+expr({deleteFunc, {atom,Ln,Mod},{atom,_,Func},{integer,_,Arity}},
+     Bs0, _, _, _) ->
+    case erase({fundef,{Mod,Func,Arity}}) of
+	undefined ->
+	    erlang:error({cannot,delete,Mod,Func,Arity,in,line,Ln});
 	_ ->
-	    erlang:error({error,line,Ln,
-			  cannotStartModuleBecauseNotInShell})
-    end,
-    {value, true, Bs0};
-expr({endMod,{atom,Ln,Name}}, Bs0, _, _, _) ->
-    windup_mod(Ln, Name),
-    {value, true, Bs0};
+	    {value, true, Bs0}
+    end;
+
 expr({call99,X,Args}, Bs0, _, _, _) ->
-    erl2:local1(X, Args, Bs0).
+    erl2:local99(X, Args, Bs0).
 
 find_maxline(LC) ->
     put('$erl_eval_max_line', 0),
@@ -1314,34 +1323,39 @@ stacktrace() -> [{?MODULE,expr,3}].
 %%%%%%%%%% Added by JA
 
 define_function(Name, Arity, Clauses, Bs0) ->
-    Context = get(context),
-    ModName = modname(Context),
-    FuncName = funcname(Context, {Name,Arity}),
-    %% io:format("Namme = ~p Context=~p Clauses=~p~n",[Name, Context,Clauses]),
+    Mod = get(current_module),
+    FuncName = funcname(get(current_function), {Name,Arity}),
+    %% io:format("Name = ~p Mod=~p FuncName=~p Clauses=~p~n",
+    %%  [Name, Mod, FuncName,Clauses]),
     Clauses1 = resolve(Clauses),
     %% io:format("Clauses1=~p~n",[Clauses1]),
-    RealName = {ModName, FuncName, Arity},
-    %% io:format("define1 ~p~n",[RealName]),
+    RealName = {Mod, FuncName, Arity},
     put1({fundef,RealName}, {Clauses1, Bs0}),
     RealName.
 
 modname([{defun,_,_}|T]) -> modname(T);
 modname([H|_]) ->  H.
 
-funcname([{defun,Ran,L}|_], X) ->
+funcname({Ran,L}, X) ->
     case lists:member(X, L) of
-	true ->
-	    element(1, X);
-	false ->
-	    {Ran,element(1,X)}
+	true  -> element(1, X);
+	false -> {Ran,element(1,X)}
     end;
-funcname([_|_], X) ->
+funcname(none, X) ->
     element(1, X).
 
+resolve({call,Ln1,{remote,_,{atom,_,Mod},{atom,_,Ln2,Func}}=Z,Args}) ->
+    Args1 = resolve(Args),
+    case lists:member(Mod, get(defining_modules)) of
+	true ->
+	    {call101,Mod,Func,Args1};
+	false ->
+	    {call,Ln1,Z,Args1}
+    end;
 resolve({call,_Ln1,{atom,_Ln2,Func},Args}) ->
     Arity = length(Args),
     Args1 = resolve(Args),
-    Loc = findit(get(context), Func, Arity),
+    Loc = resolve_unqualified_call(Func, Arity),
     {call99,Loc,Args1};
 resolve(T) when is_tuple(T) ->
     list_to_tuple(resolve(tuple_to_list(T)));
@@ -1349,6 +1363,18 @@ resolve([H|T]) ->
     [resolve(H) | resolve(T)];
 resolve(X) ->
     X.
+
+resolve_unqualified_call(F, Arity) ->
+    Mod = get(current_module),
+    FName = case get(current_function) of
+		none   -> F;
+		{R, L} ->
+		    case member({F,Arity}, L) of
+			true  -> F;
+			false -> {R, F}
+		    end
+	    end,
+    {Mod, FName}.
 
 findit(C, N, A) ->
     Ret = findit0(C, N, A),
@@ -1410,22 +1436,6 @@ save(X) ->
 	    end;
 	{Func, L1} ->
 	    put1(collectingFunc,{Func,[X|L1]})
-    end.
-
-windup_func(Ln, _Name) ->
-    case get(context) of
-	[{defun,_,_}|T] ->
-	    put(context, T);
-	_ ->
-	    erlang:error({error,line,Ln,expecting,endFunc, notInAFunc})
-    end.
-
-windup_mod(Ln, Name) ->
-    case get(context) of
-	[Name|T] ->
-	    put(context, T);
-	_ ->
-	    erlang:error({error,line,Ln,notExpecting,endMod, Name})
     end.
 
 is_in_script({atom,_,Mod},{atom,_,Func}, Arity) ->

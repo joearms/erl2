@@ -1,0 +1,18 @@
+%% This is a patch to tests.erl2
+%% twice in mod4 was incorrect -- all we need to do 
+%% is redefine it
+
+erl2:run("tests.erl2").
+
+addMod mod4.
+def twice(X) -> 2*X end.
+
+addMod shell.
+
+4 = mod4:twice(2).
+
+print("Yes ...").
+
+
+
+

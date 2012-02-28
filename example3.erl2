@@ -2,14 +2,16 @@
 %% since fac(5) *is not* 100
 %% The unit test fails
 
+defMods mod3 end.
 
-beginMod mod3.
+addMod mod3.
+ 
  defExports fac/1 end.
 
  def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
  100 = fac(5).
 
-endMod mod3.
+addMod shell.
 
 io:format("mod3:fac(50)=~p~n",[mod3:fac(50)]).
 

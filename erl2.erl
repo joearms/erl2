@@ -1,5 +1,5 @@
 -module(erl2).
--export([batch/1, local1/3, local2/4]).
+-export([batch/1, local99/3, local2/4, make_mods/0, run/1]).
 -import(lists, [reverse/1, reverse/2]).
 
 %% Copyright Joe Armstrong. 2011 All Rights Reserved.
@@ -36,7 +36,9 @@ run(F) ->
     case consult(F) of
 	{ok, Exprs} ->
 	    elib1_misc:dump("exprs.tmp", Exprs),
-	    put(context, [shell]),
+	    put(current_module, shell),
+	    put(defining_modules, []),
+	    put(current_function, none),
 	    B0 = erl_eval:new_bindings(),
 	    case (catch erl_eval:exprs(Exprs, B0, {eval, fun local/3})) of
 		{'EXIT', Why} ->
@@ -76,8 +78,9 @@ find_it0([{defun,Line,L},H|_], F, A) ->
 find_it0([H|_], F, A) ->
     {H,F,A}.
 
-local1({_M,F,Arity}=X, Args, B) ->
-    doit(get({fundef, X}), F, Arity, Args, B).
+local99({M, F}, Args, B) ->
+    Arity = length(Args),
+    doit(get({fundef, {M, F, Arity}}), F, Arity, Args, B).
 
 local2(Mod, Func, Args, B) ->
     %% io:format("local2:~p~n",[{Mod,Func,Args}]),
@@ -85,9 +88,11 @@ local2(Mod, Func, Args, B) ->
     doit(get({fundef,{Mod,Func,Arity}}), Func, Arity, Args, B).
 
 local(F, Args, B0) ->
-    %% io:format("local:~p~n",[{F,Args,B0,get()}]),
+    %% io:format("local:~p~n",[{F,Args}]),
     Arity = length(Args),
-    doit(find_it(F, Arity), F, Arity, Args, B0).
+    {Mod, Func} = erl_eval:resolve_unqualified_call(F, Arity), 
+    %% io:format("calling ~p~n",[{Mod,Func,Arity}]),
+    doit(get({fundef,{Mod,Func,Arity}}), F, Arity, Args, B0).
 
 doit(undefined, F, Arity, _Args, _B0) ->
     io:format("** undefined function:~p~n",[{F,Arity}]),
@@ -168,10 +173,14 @@ string2exprs(Str, Ln) ->
 
 munge_toks([{atom,N,def}|T])        -> [{def,N}|munge_toks(T)];
 munge_toks([{atom,N,defExports}|T]) -> [{defExports,N}|munge_toks(T)];
+munge_toks([{atom,N,defMods}|T])    -> [{defMods,N}|munge_toks(T)];
 munge_toks([{atom,N,spec}|T])       -> [{spec,N}|munge_toks(T)];
-munge_toks([{atom,N,beginMod}|T])   -> [{beginMod,N}|munge_toks(T)];
-munge_toks([{atom,N,endMod}|T])     -> [{endMod,N}|munge_toks(T)];
+munge_toks([{atom,N,addMod}|T])     -> [{addMod,N}|munge_toks(T)];
 munge_toks([{atom,N,beginFunc}|T])  -> [{beginFunc,N}|munge_toks(T)];
+munge_toks([{atom,N,deleteFunc}|T]) -> [{deleteFunc,N}|munge_toks(T)];
 munge_toks([{atom,N,endFunc}|T])    -> [{endFunc,N}|munge_toks(T)];
 munge_toks([H|T])                   -> [H|munge_toks(T)];
 munge_toks([])                      -> [].
+
+make_mods() ->
+    io:format("make mods NYI~n").

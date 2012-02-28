@@ -3,16 +3,18 @@
 %%   In the generated module mod1.erl
 %%   we import the result of the earlier computation
 
+defMods mod1 end.
+
 def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
 
 F25 = fac(25).
 
-beginMod mod1.
+addMod mod1.
  defExports a/1 end.
 
  def a(N) -> F25 + N end.
 
-endMod mod1.
+addMod shell.
 
 io:format("mod1:a(10)=~p~n",[mod1:a(10)]).
 

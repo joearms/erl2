@@ -52,10 +52,21 @@ that annoyed me.
 
 > cat test.erl2
 
+%% we start with defMods
+%%  Why? we need to know if
+%%    X:Y means a call to the Erlang module X or the module we are defining
+%%    here.
+%%  
+
+defMods shell mod1 mod2 mod3 mod4 end.
+
+addMod shell. 
+
 %% hello world
 
 def hello() -> io:format("Hello world~n") end.
 hello().
+
 
 def test(N) -> io:format("Passing test ~p~n",[N]) end.
 def print(X) -> io:format("~p~n", [X]) end.
@@ -83,8 +94,11 @@ print(fac1(50)).
 test(4).
 
 beginFunc f1/1 end.
+
   %% f1 is a local fucntion - that is in the export list
   %% so it will be exported
+
+  shell:test(5).
 
   def f1(X) -> {f1,X} end.
 
@@ -142,7 +156,7 @@ test(11).
 
 print("Modules").
 
-beginMod mod1.
+addMod mod1.
 
 defExports a/1 b/2 c/3 end.  %% ignored for now
 
@@ -158,7 +172,7 @@ defExports a/1 b/2 c/3 end.  %% ignored for now
  shell:test(13).  
  test(14).
 
-endMod mod1.
+addMod shell.
 
 print("Testing that we can call functions in a module from outside").
 
@@ -170,7 +184,7 @@ test(16).
 
 %% Mod with private functions
 
-beginMod mod2.
+addMod mod2.
 
 defExports a/1 b/2 c/3 end.  %% ignored for now
 
@@ -187,7 +201,7 @@ defExports a/1 b/2 c/3 end.  %% ignored for now
  {mod2,b,123} = a(123).
  test(19).
 
-endMod mod2.
+addMod shell.
  
 {mod2,b,123} = mod2:a(123).
 test(20).
@@ -199,12 +213,12 @@ print("Meta programming ...").
 
 F25 = fac(25).
 
-beginMod mod3.
+addMod mod3.
  defExports a/1 end.  %% ignored for now
 
  def a(N) -> F25 + N end.
 
-endMod mod3.
+addMod shell.
 
 print(mod3:a(10)).
 
@@ -215,7 +229,7 @@ print("More fancy stuff").
 %% We can do unit tests *inside the module*
 %% If the unit tests fail - we crash and the module will not be generated
 
-beginMod mod4.
+addMod mod4.
  
  defExports fac/1 end. 
  def fac(0) -> 1; fac(N) -> N*fac(N-1) end.
@@ -224,12 +238,25 @@ beginMod mod4.
  120 = fac(5).
  shell:print("unit test worked").
 
-endMod mod4.
+ def twice(X) -> 3*X end.
+ 9 = twice(3).
+ shell:print("** I know this is bad but don't worry").
+
+addMod shell.
 
 test(21).
 
 print("Horray - everything worked dump the results into a file
        which we can compile later").
+
+erl2:make_mods().
+
+
+
+
+
+
+
 
 --------------------------------------------------------------------
 

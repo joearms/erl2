@@ -1,0 +1,16 @@
+%% This is a patch to tests.erl2
+%% we'll remove the erronious function
+
+erl2:run("tests.erl2").
+
+deleteFunc mod4:twice/1 end.
+
+addMod shell.
+
+{'EXIT', {undef, [{mod4,twice,_,_}|_]}} = (catch mod4:twice(2)).
+
+print("Yes ...").
+
+
+
+

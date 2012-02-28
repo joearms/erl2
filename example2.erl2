@@ -2,14 +2,15 @@
 %% since fac(5) *is* 120
 %% Now go and look at example3.erl2
 
+defMods mod2 end.
 
-beginMod mod2.
+addMod mod2.
  defExports fac/1 end.
 
  def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
  120 = fac(5).
 
-endMod mod2.
+addMod mod2.
 
 io:format("mod2:fac(50)=~p~n",[mod2:fac(50)]).
 

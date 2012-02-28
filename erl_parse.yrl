@@ -23,7 +23,7 @@
 Nonterminals
 
 %% new terminals added by JA
-export_list
+export_list atom_list
 
 form
 attribute attr_val
@@ -58,7 +58,7 @@ char integer float atom string var
 
 %% new terminals added by JA
 
-def defExports beginMod endMod beginFunc endFunc
+def defExports defMods deleteFunc addMod beginFunc endFunc
 
 '(' ')' ',' '->' ':-' '{' '}' '[' ']' '|' '||' '<-' ';' ':' '#' '.'
 'after' 'begin' 'case' 'try' 'catch' 'end' 'fun' 'if' 'of' 'receive' 'when'
@@ -230,18 +230,22 @@ expr -> 'def' function 'end'     : {'define1', '$2'}.
 expr -> 'def' atom '=' fun_expr  : {'define2', '$2', '$4'}. 
 expr -> 'def' attribute 'end'    : {'define3', '$2'}. 
 
-expr -> 'beginMod' atom          : {beginMod, '$2'}.
-expr -> 'beginMod' var           : {beginMod, '$2'}.
-
-expr -> 'endMod' atom            : {endMod, '$2'}.
+expr -> 'addMod' atom            : {addMod, '$2'}.
 
 %% beginFunc atom/int atom/int end:
 
-expr -> 'beginFunc' export_list  : {beginFunc, '$2'}.
-expr -> 'endFunc'                : endFunc.
-expr -> 'defExports' export_list  :{defExport, '$2'}.    
-    
+expr -> 'beginFunc' export_list       : {beginFunc, '$2'}.
+expr -> 'endFunc'                     : endFunc.
+expr -> 'defExports' export_list      : {defExport, '$2'}.    
+expr -> 'defMods'    atom atom_list   : {defMods, ['$2'|'$3']}.    
+expr -> 'deleteFunc' atom ':' atom '/' integer 'end':    
+	    {deleteFunc, '$2','$4','$6'}.
+
 expr -> expr_100 : '$1'.
+
+atom_list -> atom atom_list : ['$1' | '$2'].
+atom_list -> 'end'          : [].
+    
 
 export_list -> atom '/' integer export_list: [{'$1','$3'}|'$4'].
 export_list -> 'end'                        : [].
