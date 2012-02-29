@@ -32,6 +32,8 @@ batch([A]) ->
     run0(F),
     init:stop().
 
+%% ho ho
+
 run0(F) ->
     put(current_module, shell),
     put(defining_modules, []),
@@ -175,7 +177,7 @@ make_mods() ->
     io:format("make mods NYI~n").
 
 clone(Old, New) ->
-    %5 Update the list of defining modules
+    %% Update the list of defining modules
     Mods = get(defining_modules),
     Mods = lists:delete(New, Mods),   %% so it doesn't get their twice
     Mods1 = [New|Mods],
