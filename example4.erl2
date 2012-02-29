@@ -5,6 +5,9 @@
 erl2:run("tests.erl2").
 
 addMod mod4.
+
+deleteFunc mod4:twice/1 end.
+
 def twice(X) -> 2*X end.
 
 addMod shell.
