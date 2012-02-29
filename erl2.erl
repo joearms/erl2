@@ -1,5 +1,5 @@
 -module(erl2).
--export([batch/1, local99/3, local2/4, make_mods/0, run/1]).
+-export([batch/1, clone/2, local99/3, local2/4, make_mods/0, run/1]).
 -import(lists, [reverse/1, reverse/2]).
 
 %% Copyright Joe Armstrong. 2011 All Rights Reserved.
@@ -29,16 +29,20 @@
 
 batch([A]) ->
     F = atom_to_list(A),
-    run(F),
+    run0(F),
     init:stop().
+
+run0(F) ->
+    put(current_module, shell),
+    put(defining_modules, []),
+    put(current_function, none),
+    run(F).
+
 
 run(F) ->
     case consult(F) of
 	{ok, Exprs} ->
 	    elib1_misc:dump("exprs.tmp", Exprs),
-	    put(current_module, shell),
-	    put(defining_modules, []),
-	    put(current_function, none),
 	    B0 = erl_eval:new_bindings(),
 	    case (catch erl_eval:exprs(Exprs, B0, {eval, fun local/3})) of
 		{'EXIT', Why} ->
@@ -62,21 +66,6 @@ merge_bindings([{K,V}|T], B) ->
     merge_bindings(T, erl_eval:add_binding(K, V, B));
 merge_bindings([], B) ->
     B.
-
-find_it(F, A) ->
-    R = find_it0(get(context), F, A),
-    %% io:format("find_it ~p (context = ~p) => ~p~n",[{F,A}, get(context), R]),
-    get({fundef,R}).
-
-find_it0([{defun,Line,L},H|_], F, A) ->
-    case lists:member({F,A}, L) of
-	true ->
-	    {H,F,A};
-	false ->
-	    {H,{Line,F},A}
-    end;
-find_it0([H|_], F, A) ->
-    {H,F,A}.
 
 local99({M, F}, Args, B) ->
     Arity = length(Args),
@@ -168,7 +157,7 @@ string2exprs(Str, Ln) ->
 	    io:format("~n***SCAN ERROR:~p~n", [Other]),
 	    error
     end.
-
+ 
 %% WHY must I munge spec?? - is the tokeniser wrong?
 
 munge_toks([{atom,N,def}|T])        -> [{def,N}|munge_toks(T)];
@@ -184,3 +173,38 @@ munge_toks([])                      -> [].
 
 make_mods() ->
     io:format("make mods NYI~n").
+
+clone(Old, New) ->
+    %5 Update the list of defining modules
+    Mods = get(defining_modules),
+    Mods = lists:delete(New, Mods),   %% so it doesn't get their twice
+    Mods1 = [New|Mods],
+    put(defining_modules, Mods1),
+    
+    %% io:format("get=~p~n",[get()]),
+    Defs = [{{fundef,{I,J,K}}, X} || {{fundef, {I,J,K}}, X} <- get(),
+				  I == Old],
+    %% io:format("Old=~p~n",[Defs]),
+    Defs1 = deep_replace(Defs, Old, New),
+    %% io:format("New=~p~n",[Defs1]),  
+    [put(K,V) || {K,V} <- Defs1],
+    %% io:format("get=~p~n",[get()]),
+    true.
+
+deep_replace({call99,{Old,X},Bs}, Old, New) ->
+    Bs1 = deep_replace(Bs, Old, New),
+    {call99,{New,X}, Bs1};
+deep_replace({{fundef,{Old,F,A}},D}, Old, New) ->
+    D1 = deep_replace(D, Old, New),
+    {{fundef,{New,F,A}},D1};
+deep_replace(T, O, N) when is_tuple(T) ->
+    list_to_tuple(deep_replace(tuple_to_list(T), O, N));
+deep_replace([H|T], O, N) ->
+    [deep_replace(H, O, N) | deep_replace(T, O, N)];
+deep_replace(X, _, _) ->
+    X.
+
+
+    
+
+

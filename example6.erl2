@@ -1,0 +1,28 @@
+%% This is a patch to tests.erl2
+%% we'll remove the erronious function
+
+erl2:run("tests.erl2").
+
+erl2:clone(mod4, newmod).
+
+addMod newmod.
+
+%% The next is for safety
+%% Why? there was a definition in mod4
+%% you must delete the function first
+%% otherwise you'll get an error
+
+deleteFunc newmod:twice/1 end.
+
+def twice(X) -> 2* X end.
+
+addMod shell.
+
+io:format("newmod:fac(10)=~p~n",[newmod:fac(10)]).
+
+
+print("Yes ...").
+
+
+
+
