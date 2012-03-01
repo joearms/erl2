@@ -1,18 +1,21 @@
 defMods  mod1 end.
 
-def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
-
-A = fac(25).
-
 addMod mod1. 
 
+A = aaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+B = bbbbbbbbbbbbbbbbbbbbbbbbbbbb.
 
-def f1(X,Y)       -> X + A end.
-def f2 = fun(X,A) -> X + A end.	
+def foo(X,1) -> X + A;
+    foo(P,2) -> P + B;
+    foo(A,X) -> A + X + B;
+    foo(A,B) -> A + B
+end.
 
-def f3(X,A) -> A,Y=1,Y=X end.
-
-      
+def foo1(X) ->
+      F = fun(A) ->
+             A + X + B
+	  end,
+      F(X, A) end.
 
 erl2:dump().
 erl2:make_mods().

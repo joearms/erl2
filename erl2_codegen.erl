@@ -1,8 +1,6 @@
 -module(erl2_codegen).
 -compile(export_all).
 
-%% Not done funs and clauses and LCs in bodies
-
 test() ->
     epp:parse_file("./erl2_codegen.erl","","").
 
@@ -12,11 +10,12 @@ start() ->
     [compile_mod(I, L) || I <- Mods].
 
 get_mods(L) ->
-    L1 = lists:sort(elib1_misc:remove_duplicates([M || {{fundef,{M,_,_}},_} <- L])).
+    lists:sort(
+      elib1_misc:remove_duplicates(
+	[M || {{fundef,{M,_,_}},_} <- L])).
 
 compile_mod(Mod, L) ->
     Funcs = get_funcs(Mod, L),
-    %% io:format("Mod:~p~n Funcs=~p~n",[Mod, Funcs]),
     [compile_func(I) || I<- Funcs].
 
 get_funcs(Mod, L) ->
@@ -27,145 +26,75 @@ get_funcs(Mod, L) ->
 %%----------------------------------------------------------------------
 
 compile_func({Name,Arity,{Clauses, Bs}}) ->
+    io:format("transform ~p/~p~n",[Name,Arity]),
     %% Step 1 - make a binding list
-    Bs1 = [{Var,{value,Val}} || {Var, Val} <- Bs],
-    Clauses1 = [rename_top_clauses(I, [Bs1]) || I <- Clauses],
+    Bs1 = [Var || {Var,_} <- Bs],
+    Clauses1 = [transform_clauses(I, Bs1, Bs) || I <- Clauses],
     F = {function,1,Name,Arity,Clauses1},
     S = erl_pp:form(F),
     io:format("~s~n",[S]).
 
-rename_top_clauses({clause, Ln, H, G, B}=C, Bs0) ->
-    %% io:format("in clause C=~p~n",[C]),
-    %% io:format("env B0=~p~n",[Bs0]),
-    put(max_vars, 0),
-    {H1, Bs1} = rename_fun_head(H, Bs0),
-    %% We can't create new vars in a guard
-    G1 = rename_vars(G, Bs1),
-    %% io:format("H1 = ~p~n G1=~p~n Stack1=~p~n",[H1,G1,Bs1]),
-    %% io:format("rename_body:~p~n",[Bs1]),
-    {B1, Bs2} = rename_body(B, Bs1),
-    Ret = {clause, Ln, H1, G1, B1},
-    %% io:format("Result=~p~n",[Ret]),
-    Ret.
+transform_clauses({clause, Ln, H, G, B}=C, Vars, Bs) ->
+    Stack = [varsin(H),Vars],
+    Add = import_bindings0(B, Stack),
+    %% io:format("Add=~p~n",[Add]),
+    case Add of
+	[] -> C;
+	_  ->
+	    M = [make_match(Ln, I, Bs) || I <-Add],
+	    B1 = M ++ B,
+	    {clause, Ln, H, G, B1}
+    end.
 
-rename_fun_head(H, B) ->
-    F = fun funvar/4,
-    rename_pattern(H, F, [[]] ++ B).
+make_match(Ln, Var, Bs) ->
+    {match,Ln,{var,Ln,Var},value(Ln, Var, Bs)}.
 
-funvar(Var, Ln, {yes,1,[N]}, B0) ->
-    {{var,Ln,xx(N)},B0};
-funvar(Var, Ln, {yes,K,_}, B0) when K > 1 ->
-    io:format("*** shadowed variable Var:~p line:~p~n",[Var,Ln]),
-    New = new_var(),
-    B1 = add_var(Var,New,B0),
-    {{var,Ln,xx(New)},B1};
-funvar(Var, Ln, no, B0) ->
-    New = new_var(),
-    B1 = add_var(Var,New,B0),
-    {{var,Ln,xx(New)},B1}.
+value(Ln, Var, Bs) ->
+    {value,{_,Value}} = lists:keysearch(Var,1,Bs),
+    erl_parse:abstract(Value, Ln).
 
-%% matchvar occurs in Patterns
-%%   X = V
+import_bindings0(X, B) ->
+    Vars = import_bindings(X, B),
+    elib1_misc:remove_duplicates(Vars).
 
-matchvar(Var, Ln, {yes,_,[N]}, B0) ->
-    {{var,Ln,xx(N)},B0};
-matchvar(Var, Ln, {yes,K,{value,V}}, B0) when K > 1 ->
-    io:format("*** warning variable Var:~p line:~p replaced with:~p~n",[Var,Ln,V]),
-    {value(Ln, V),B0};
-matchvar(Var, Ln, no, B0) ->
-    New = new_var(),
-    B1 = add_var(Var,New,B0),
-    {{var,Ln,xx(New)},B1}.
+%% import_bindings makes a list of the variables
+%% that have to be imported
 
-f1() ->
-    X = 1,
-    F = fun() ->
-		X = 1
-	end,
-    F().
+import_bindings({'fun',_Ln,{clauses,C}}, B) ->
+    import_clauses(C, B);
+import_bindings({var,_,V}, B) ->
+    import_var(V, B);
+import_bindings(T, B) when is_tuple(T) ->
+    import_bindings(tuple_to_list(T), B);
+import_bindings([H|T], B) ->
+    import_bindings(H, B) ++ import_bindings(T, B);
+import_bindings(_, _) ->
+    [].
 
-f2() ->
-    X = 1,
-    F = fun() ->
-		X = 2
-	end,
-    F().
-    
-rename_pattern({var,Ln,V}, F, B0) ->
-    F(V,Ln,find_var(V, B0),B0);
-rename_pattern(T, F, B0) when is_tuple(T) ->
-    {L1, B1} = rename_pattern(tuple_to_list(T), F, B0),
-    {list_to_tuple(L1), B1};
-rename_pattern([H|T], F, B0) ->
-    {H1, B1} = rename_pattern(H, F, B0),
-    {T1, B2} = rename_pattern(T, F, B1),
-    {[H1|T1], B2};
-rename_pattern(X, F, B) ->
-    {X, B}.
+import_clauses([H|T], Stack) ->
+    import_clause(H, Stack) ++ import_clauses(T, Stack);
+import_clauses([], _) ->
+    [].
 
+import_clause({clause,_,Head,_G,Body}, Stack) ->
+    import_bindings(Body, [varsin(Head)|Stack]).
+
+import_var(Var, [Last]) -> 
+    case lists:member(Var, Last) of
+	true -> [Var];
+	false -> []
+    end;
+import_var(Var, [H|T]) ->
+    case lists:member(Var, H) of
+	true -> [];
+	false -> import_var(Var, T)
+    end.
+	    
 value(Ln, Val) ->
     erl_parse:abstract(Val, Ln).
 
 xx(N) ->
     list_to_atom("V" ++ integer_to_list(N)).
-
-rename_body({var,Ln,V}, B0) ->
-    case find_var(V, B0) of
-	{yes, _, [New]} ->
-	    {{var,Ln,xx(New)}, B0};
-	{yes, _, {value,Val}} ->
-	    {value(Ln, Val), B0};
-	no ->
-	    exit({undef,var,line,Ln,V})
-    end;
-rename_body({match,Ln,Pattern,Rhs},B0) ->
-    {Pattern1, B1} = rename_pattern(Pattern, fun matchvar/4, B0),
-    {Rhs1, B2} = rename_body(Rhs, B1),
-    {{match,Ln,Pattern1,Rhs1},B2};
-rename_body(T, B) when is_tuple(T) ->
-    {L1, B1} = rename_body(tuple_to_list(T), B),
-    {list_to_tuple(L1), B1};
-rename_body([H|T], B0) ->
-    {H1, B1} = rename_body(H, B0),
-    {T1, B2} = rename_body(T, B1),
-    {[H1|T1], B2};
-rename_body(X, B) ->
-    {X, B}.
-
-
-new_var() ->
-    N = get(max_vars),
-    put(max_vars, N+1),
-    N+1.
-
-add_var(Var,N,[H|T]) ->
-    [[{Var,[N]}|H]|T].
-    
-rename_vars({var,Ln,V}, Stack) ->
-    case find_var(V, Stack) of
-	{yes, [New]} ->
-	    {var,Ln,xx(New)};
-	no ->
-	    exit({badVar,Ln,V})
-    end;
-rename_vars(T, Map)  when is_tuple(T) ->
-    L = [rename_vars(I, Map) || I <- tuple_to_list(T)],
-    list_to_tuple(L);
-rename_vars([H|T], Map) ->
-    [rename_vars(H, Map)|rename_vars(T, Map)];
-rename_vars(X, _) ->
-    X.
-
-find_var(Var, Stack) ->
-    find_var(Var, 1, Stack).
-
-find_var(Var, Level, [HF|TF]) ->
-    case lists:keysearch(Var, 1, HF) of
-	{value,{_,Val}} -> {yes, Level, Val};
-	false           -> find_var(Var, Level+1, TF)
-    end;
-find_var(_, _, _) ->
-    no.
 
 varsin(X) -> varsin(X, []).
 

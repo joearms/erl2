@@ -1,5 +1,5 @@
 -module(erl2).
--export([batch/1, clone/2, local99/3, local2/4, make_mods/0, run/1]).
+-export([batch/1, dump/0, clone/2, local99/3, local2/4, make_mods/0, run/1]).
 -import(lists, [reverse/1, reverse/2]).
 
 %% Copyright Joe Armstrong. 2011 All Rights Reserved.
@@ -44,7 +44,7 @@ run0(F) ->
 run(F) ->
     case consult(F) of
 	{ok, Exprs} ->
-	    elib1_misc:dump("exprs.tmp", Exprs),
+	    dump("exprs.tmp", Exprs),
 	    B0 = erl_eval:new_bindings(),
 	    case (catch erl_eval:exprs(Exprs, B0, {eval, fun local/3})) of
 		{'EXIT', Why} ->
@@ -174,7 +174,7 @@ munge_toks([H|T])                   -> [H|munge_toks(T)];
 munge_toks([])                      -> [].
 
 make_mods() ->
-    io:format("make mods NYI~n").
+    erl2_codegen:start().
 
 clone(Old, New) ->
     %% Update the list of defining modules
@@ -205,6 +205,9 @@ deep_replace([H|T], O, N) ->
     [deep_replace(H, O, N) | deep_replace(T, O, N)];
 deep_replace(X, _, _) ->
     X.
+
+dump() ->
+    dump("all.gen", get()).
 
 
     

@@ -1,0 +1,18 @@
+1) Add sections
+
+   begin{latex}
+   ... Body ...
+   end{latex}
+
+   transforms to mod_latex:block(<<" ... Body ...">>)
+
+   ie literate programming
+
+2) Bring back !!
+
+   erl2:start_service("/dev/spawn", fun() -> ... end)
+
+   Pid = "/dev/spawn !! Fun"
+
+3) fix the erl99 bug :-)
+
