@@ -9,6 +9,8 @@ addMod shell.
 
 def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
 
+120 = fac(5).
+
 F25 = fac(25).
 
 addMod mod1.

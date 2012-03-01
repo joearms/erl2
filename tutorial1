@@ -1,0 +1,163 @@
+Tutorials 1 and 2
+=================
+
+   Download from
+   https://github.com/joearms/erl2
+
+Tutorial 1
+==========
+
+Here is a 10 line erl2 program:
+
+$ cat example1.erl2
+
+   defMods mod1 shell end.
+   addMod shell.
+   def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+   120 = fac(5).
+   F25 = fac(25).
+   addMod mod1.
+   def a(N) -> F25 + N end.
+   addMod shell.
+   io:format("mod1:a(10)=~p~n",[mod1:a(10)]).
+   erl2:make_mods().
+	
+To run the program we say:
+
+$./erl2 example1.erl2 
+ Created:"gen/exprs.tmp"
+ mod1:a(10)=15511210043330985984000010
+ make_mods saving generated code...
+ Created:"gen/all.gen"
+ Created:gen/mod1.erl
+ Created:gen/shell.erl
+ Success
+
+this generates two files
+
+ $ cat gen/shell.erl 
+  -module(shell).
+  -compile(export_all).
+
+ fac(0) ->
+     1;
+ fac(N) ->
+     N * fac(N - 1).
+
+ $cat gen/mod1.erl
+ -module(mod1).
+ -compile(export_all).
+
+ a(N) ->
+     F25 = 15511210043330985984000000,
+     F25 + N.
+
+What do the commands do?
+
+1) Start by defining which modules we will be creating
+
+>  defMods mod1 shell end.
+
+2) addMod X - means "we are adding code to the module X" so
+
+>   addMod shell
+
+   means we are adding some code to the module shell
+
+3) Define a function
+
+>  def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+   
+   Defines a function fac (in shell since we add adding code to shell)
+   Note: we can write self-referential functions here.
+
+4) test the code
+>  120 = fac(5).
+
+5) Run the code
+
+> F25 = fac(25).
+
+6) Now add some code to mod1
+
+>   addMod mod1.
+>   def a(N) -> F25 + N end.
+
+7) Go back to adding code in the shell
+
+> addMod shell.
+
+8) Test the function works
+
+> io:format("mod1:a(10)=~p~n",[mod1:a(10)]).
+
+9) Generate the code
+
+> erl2:make_mods().
+	
+That's it
+
+Now we can look at the generated code
+
+Look at the code in mod1 - The shell binding for F25 was propagated into
+the shell.
+
+$ cat gen/shell.erl 
+ -module(shell).
+ -compile(export_all).
+
+ fac(0) ->
+     1;
+ fac(N) ->
+     N * fac(N - 1).
+
+ $cat gen/mod1.erl
+ -module(mod1).
+ -compile(export_all).
+
+ a(N) ->
+     F25 = 15511210043330985984000000,
+     F25 + N.
+
+Tutorial 2
+==========
+
+Now we change the code to the following:
+
+ $ cat example1_fail.erl2
+
+   defMods mod1 shell end.
+   addMod shell.
+   def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+   100 = fac(5).
+   F25 = fac(25).
+   addMod mod1.
+   def a(N) -> F25 + N end.
+   addMod shell.
+   io:format("mod1:a(10)=~p~n",[mod1:a(10)]).
+   erl2:make_mods().
+	
+This is *identical* to example1.erl2
+BUT the unit test will fail since fac(5) is NOT 100
+
+Now we run the program:
+
+$ ./erl2 example1_fail.erl2 
+  Created:"gen/exprs.tmp"
+  Error:{{badmatch,120},[{erl_eval,expr,3,[]}]}
+  Compile failed
+
+Now NO CODE is generated.
+
+So 
+
+  1) If the test fails the code is not compiled.
+  2) The unit tests are NOT run after the code is compiled
+     but *before*
+  3) Compile modules failing the unit tests are *impossible* to create
+
+Cheers
+
+/Joe
+
+
