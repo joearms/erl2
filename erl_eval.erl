@@ -1333,9 +1333,6 @@ define_function(Name, Arity, Clauses, Bs0) ->
     put1({fundef,RealName}, {Clauses1, Bs0}),
     RealName.
 
-modname([{defun,_,_}|T]) -> modname(T);
-modname([H|_]) ->  H.
-
 funcname({Ran,L}, X) ->
     case lists:member(X, L) of
 	true  -> element(1, X);
@@ -1344,7 +1341,7 @@ funcname({Ran,L}, X) ->
 funcname(none, X) ->
     element(1, X).
 
-resolve({call,Ln1,{remote,_,{atom,_,Mod},{atom,_,Ln2,Func}}=Z,Args}) ->
+resolve({call,Ln1,{remote,_,{atom,_,Mod},{atom,_,_,Func}}=Z,Args}) ->
     Args1 = resolve(Args),
     case lists:member(Mod, get(defining_modules)) of
 	true ->
@@ -1375,19 +1372,6 @@ resolve_unqualified_call(F, Arity) ->
 		    end
 	    end,
     {Mod, FName}.
-
-findit(C, N, A) ->
-    Ret = findit0(C, N, A),
-    %% io:format("findit:~p ~p  => ~p~n",[C,{N,A},Ret]),
-    Ret.
-
-findit0([{defun,Ln,L},H|_], Name, Arity) ->
-    case lists:member({Name,Arity}, L) of
-	true  -> {H, Name, Arity}; %% exported
-	false -> {H, {Ln,Name}, Arity}
-    end;
-findit0([H|_], M, A) ->
-    {H, M, A}.
 
 put1(current_function,V) ->  put(current_function, V);
 put1(current_module,V) ->  put(current_module, V);

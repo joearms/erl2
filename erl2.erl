@@ -30,6 +30,7 @@
 batch([A]) ->
     F = atom_to_list(A),
     run0(F),
+    os:cmd("rm ge/*.erl"),
     init:stop().
 
 %% ho ho
@@ -40,18 +41,16 @@ run0(F) ->
     put(current_function, none),
     run(F).
 
-
 run(F) ->
     case consult(F) of
 	{ok, Exprs} ->
-	    dump("exprs.tmp", Exprs),
+	    dump("gen/exprs.tmp", Exprs),
 	    B0 = erl_eval:new_bindings(),
 	    case (catch erl_eval:exprs(Exprs, B0, {eval, fun local/3})) of
 		{'EXIT', Why} ->
 		    io:format("Error:~p~n",[Why]),
 		    io:format("Compile failed~n");
 		_Other ->
-		    dump("all.gen", lists:sort(get())),
 		    io:format("Success~n")
 	    end;
 	error ->
@@ -174,7 +173,10 @@ munge_toks([H|T])                   -> [H|munge_toks(T)];
 munge_toks([])                      -> [].
 
 make_mods() ->
-    erl2_codegen:start().
+    io:format("make_mods saving generated code...~n"),
+    L = get(),
+    dump("gen/all.gen", L),
+    erl2_codegen:start(L).
 
 clone(Old, New) ->
     %% Update the list of defining modules

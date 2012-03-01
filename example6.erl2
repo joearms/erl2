@@ -1,5 +1,5 @@
 %% This is a patch to tests.erl2
-%% we'll remove the erronious function
+%% we'll remove the erroneous function
 
 erl2:run("tests.erl2").
 

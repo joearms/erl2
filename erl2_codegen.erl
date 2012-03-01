@@ -4,8 +4,7 @@
 test() ->
     epp:parse_file("./erl2_codegen.erl","","").
 
-start() ->
-    L = get(),
+start(L) ->
     Mods = get_mods(L),
     [compile_mod(I, L) || I <- Mods].
 
@@ -16,7 +15,14 @@ get_mods(L) ->
 
 compile_mod(Mod, L) ->
     Funcs = get_funcs(Mod, L),
-    [compile_func(I) || I<- Funcs].
+    put(current_mod, Mod),
+    SMod = atom_to_list(Mod),
+    File = "gen/" ++ SMod ++ ".erl",
+    {ok,Stream} = file:open(File, [write]),
+    io:format(Stream, "-module(~s).\n-compile(export_all).~n~n",[SMod]),
+    [compile_func(I, Stream) || I<- Funcs],
+    file:close(Stream),
+    io:format("Created:~s~n",[File]).
 
 get_funcs(Mod, L) ->
     lists:sort(elib1_misc:remove_duplicates(
@@ -25,26 +31,58 @@ get_funcs(Mod, L) ->
 
 %%----------------------------------------------------------------------
 
-compile_func({Name,Arity,{Clauses, Bs}}) ->
-    io:format("transform ~p/~p~n",[Name,Arity]),
+compile_func({Name,Arity,{Clauses, Bs}}, Stream) ->
+    %% io:format("transform ~p/~p~n",[Name,Arity]),
     %% Step 1 - make a binding list
     Bs1 = [Var || {Var,_} <- Bs],
     Clauses1 = [transform_clauses(I, Bs1, Bs) || I <- Clauses],
     F = {function,1,Name,Arity,Clauses1},
-    S = erl_pp:form(F),
-    io:format("~s~n",[S]).
+    Str = erl_pp:form(F),
+    io:format(Stream, "~s~n",[Str]).
 
-transform_clauses({clause, Ln, H, G, B}=C, Vars, Bs) ->
+transform_clauses({clause, Ln, H, G, B}, Vars, Bs) ->
     Stack = [varsin(H),Vars],
     Add = import_bindings0(B, Stack),
     %% io:format("Add=~p~n",[Add]),
+    B1 = xform_body(B),
     case Add of
-	[] -> C;
+	[] -> 
+	    {clause, Ln, H, G, B1};
 	_  ->
 	    M = [make_match(Ln, I, Bs) || I <-Add],
-	    B1 = M ++ B,
-	    {clause, Ln, H, G, B1}
+	    B2 = M ++ B1,
+	    {clause, Ln, H, G, B2}
     end.
+
+xform_body(X) ->
+    deep_replace(X, fun fix_99/1).
+
+fix_99({call99,{Mod,Func},Args}) ->
+    case get(current_mod) of
+	Mod ->
+	    {yes, {call,-1,{atom,-1,Func}, Args}};
+	_ ->
+	    {yes, {call,-1,{remote, {atom,-1,Mod},{atom,-1,Func}}, Args}}
+    end;
+fix_99(_) ->
+    no.
+
+deep_replace(X, F) ->
+    case F(X) of
+	no ->
+	    deep_replace1(X, F);
+	{yes, New} ->
+	    deep_replace(New, F)
+    end.
+
+deep_replace1(T, F) when is_tuple(T) ->
+    L = tuple_to_list(T),
+    L1 = deep_replace(L, F),
+    list_to_tuple(L1);
+deep_replace1([H|T], F) ->
+    [deep_replace(H, F) | deep_replace(T, F)];
+deep_replace1(X, _) ->
+    X.
 
 make_match(Ln, Var, Bs) ->
     {match,Ln,{var,Ln,Var},value(Ln, Var, Bs)}.

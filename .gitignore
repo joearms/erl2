@@ -3,6 +3,7 @@
 erl_parse.erl
 .eunit/*
 deps/*
+gen/*.erl
 ebin
 priv/*
 *.o

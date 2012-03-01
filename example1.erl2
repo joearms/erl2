@@ -3,24 +3,51 @@
 %%   In the generated module mod1.erl
 %%   we import the result of the earlier computation
 
-defMods mod1 end.
+defMods mod1 shell end.
+
+addMod shell.
 
 def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
 
 F25 = fac(25).
 
 addMod mod1.
- defExports a/1 end.
 
- def a(N) -> F25 + N end.
+def a(N) -> F25 + N end.
 
 addMod shell.
 
 io:format("mod1:a(10)=~p~n",[mod1:a(10)]).
 
+erl2:make_mods().
+	
 %% Sample output
 
-%% $./erl2 example1.erl2
+%% $./erl2 example1.erl2 
+%% Created:"gen/exprs.tmp"
 %% mod1:a(10)=15511210043330985984000010
-%% Created:"all.gen"
+%% make_mods saving generated code...
+%% Created:"gen/all.gen"
+%% Created:gen/mod1.erl
+%% Created:gen/shell.erl
 %% Success
+
+
+%% $ cat gen/shell.erl 
+%% -module(shell).
+%% -compile(export_all).
+
+%% fac(0) ->
+%%     1;
+%% fac(N) ->
+%%     N * fac(N - 1).
+
+%% $cat gen/mod1.erl
+%% -module(mod1).
+%% -compile(export_all).
+
+%% a(N) ->
+%%     F25 = 15511210043330985984000000,
+%%     F25 + N.
+
+

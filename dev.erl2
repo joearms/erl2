@@ -1,11 +1,18 @@
 defMods  mod1 end.
 
+addMod shell.
+
+def fac = fun(0) -> 1; (N) -> N*fac(N-1) end.
+
+Fac50 = fac(50).
+
+
 addMod mod1. 
 
-A = aaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+A = aaaaaaaaaaaaaaaaaaaaaaa.
 B = bbbbbbbbbbbbbbbbbbbbbbbbbbbb.
 
-def foo(X,1) -> X + A;
+def foo(X,1) -> X + A +Fac50;
     foo(P,2) -> P + B;
     foo(A,X) -> A + X + B;
     foo(A,B) -> A + B
@@ -17,7 +24,6 @@ def foo1(X) ->
 	  end,
       F(X, A) end.
 
-erl2:dump().
 erl2:make_mods().
 	
 
