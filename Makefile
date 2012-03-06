@@ -11,7 +11,7 @@ tests: beam erl_parse.beam
 	./erl2 tests.erl2
 
 dev: beam erl_parse.beam
-	./erl2 dev.erl2
+	./erld example7.erld
 
 erl_parse.beam: erl_parse.yrl
 	erlc erl_parse.yrl

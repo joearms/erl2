@@ -77,9 +77,12 @@ Expect 2.
 
 Rootsymbol form.
 
+form -> expr dot      : {expr, '$1'}.
 form -> attribute dot : '$1'.
-form -> function dot : '$1'.
-form -> rule dot : '$1'.
+form -> function dot  : '$1'.
+form -> rule dot      : '$1'.
+
+    
 
 attribute -> '-' atom attr_val               : build_attribute('$2', '$3').
 attribute -> '-' atom typed_attr_val         : build_typed_attribute('$2','$3').
@@ -539,7 +542,7 @@ rule_body -> ':-' lc_exprs: '$2'.
 
 Erlang code.
 
--export([parse_form/1,parse_exprs/1,parse_term/1]).
+-export([parse_any/1,parse_form/1,parse_exprs/1,parse_term/1]).
 -export([normalise/1,abstract/1,tokens/1,tokens/2]).
 -export([abstract/2, package_segments/1]).
 -export([inop_prec/1,preop_prec/1,func_prec/0,max_prec/0]).
@@ -591,6 +594,12 @@ parse_form([{'-',L1},{atom,L2,callback}|Tokens]) ->
     parse([{'-',L1},{'callback',L2}|Tokens]);
 parse_form(Tokens) ->
     parse(Tokens).
+
+parse_any([{'-',L1},{atom,L2,spec}|Tokens]) ->
+    parse([{'-',L1},{'spec',L2}|Tokens]);
+parse_any([{'-',L1},{atom,L2,callback}|Tokens]) ->
+    parse([{'-',L1},{'callback',L2}|Tokens]);
+parse_any(Tokens) ->  parse(Tokens).
 
 -spec parse_exprs(Tokens) -> {ok, ExprList} | {error, ErrorInfo} when
       Tokens :: [token()],

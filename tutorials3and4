@@ -1,0 +1,109 @@
+Tutorials 3 and 4
+=================
+
+   Download from
+   https://github.com/joearms/erl2
+
+Tutorial 3
+==========
+
+Here is an erlang module with embedded expressions:
+(I've changed the file extension  to .erld)
+
+$ cat example7.erld
+
+  -module(example7).
+  -export([test/1]).
+  -local([fac/1]).
+
+  fac(0) -> 1;
+  fac(N) -> N*fac(N-1).
+
+  Fac50 = fac(50).
+
+  io:format("Fac50=~p~n",[Fac50]).
+
+  120 = fac(5).
+
+  io:format("Unit test succeeds~n").
+
+  test(X) ->
+     X*Fac50.
+	
+To run the program we say:
+
+$./erld example7.erld
+  Fac50=30414093201713378043612608166064768844377641568960512000000000000
+  Unit test succeeds
+  Success
+  Created:gen/example7.erl
+
+erld runs the code in example7.erld and writes an output file example7.erl.
+We can see the generated code
+
+ $ cat gen/example7.erl
+
+-module(example7).
+-export([test/1]).
+-local([{fac,1}]).
+
+test(X) ->
+    Fac50 =
+        30414093201713378043612608166064768844377641568960512000000000000,
+    X * Fac50.
+
+Note: 1) the unit tests vanished
+      2) fac/0 vanished
+      3) the Fac50 binding was imported into the definition of test/1
+
+Tutorial 4
+==========
+
+Now we change the code to the following:
+
+ $ cat example8.erld
+
+  -module(example8).
+  -export([test/1]).
+  -local([fac/1]).
+
+  fac(0) -> 1;
+  fac(N) -> N*fac(N-1).
+
+  Fac50 = fac(50).
+
+  io:format("Fac50=~p~n",[Fac50]).
+
+  120 = fac(4).
+
+  io:format("Unit test succeeds~n").
+
+  test(X) ->
+      X*Fac50.
+	
+This is *identical* to example7.erld
+BUT the unit test will fail since fac(5) is NOT 1200
+
+Now we run the program:
+
+
+  $./erld example8.erld
+  Created:"gen/exprs.tmp"
+  Fac50=30414093201713378043612608166064768844377641568960512000000000000
+  Error:{{badmatch,24},[{erl_eval,expr,3,[]}]}
+  Compile failed
+
+Now NO CODE is generated.
+
+So 
+
+  1) If the test fails the code is not compiled.
+  2) The unit tests are NOT run after the code is compiled
+     but *before*
+  3) Compile modules failing the unit tests are *impossible* to create
+
+Cheers
+
+/Joe
+
+

@@ -421,6 +421,19 @@ expr({remote,_,_,_}, _Bs, _Lf, _Ef, _RBs) ->
 expr({value,_,Val}, Bs, _Lf, _Ef, RBs) ->    % Special case straight values.
     ret_expr(Val, Bs, RBs);
 %% Additions by JA
+expr({form,{function,_Ln,Name,Args,Clauses}}, Bs0, _,_,_) ->
+    {clause,_,H,_,_} = hd(Clauses),
+    Arity = length(H),
+    D = define_function(Name, Arity, Clauses, Bs0),
+    {value, D, Bs0};
+expr({form,{attribute,_,module,XX}=A}, Bs0, _, _, _) ->
+    put(defining_modules,[XX]),
+    put(current_module,XX),
+    add_attribute(A),
+    {value, true, Bs0};
+expr({form,{attribute,_,_,_}=A}, Bs0, _,_,_) ->
+    add_attribute(A),
+    {value, true, Bs0};
 expr({define1,{function,_Ln,Name,Arity, Clauses}}, Bs0, _, _, _) ->
     D = define_function(Name, Arity, Clauses, Bs0),
     {value, D, Bs0};
@@ -1427,3 +1440,7 @@ is_in_script({atom,_,Mod},{atom,_,Func}, Arity) ->
 	undefined -> false;
 	_ -> true
     end.
+
+add_attribute(X) ->
+    L = get(attributes),
+    put(attributes, [X|L]).

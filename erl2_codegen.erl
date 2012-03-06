@@ -5,6 +5,7 @@ test() ->
     epp:parse_file("./erl2_codegen.erl","","").
 
 start(L) ->
+    elib1_misc:dump("code.all", L),
     Mods = get_mods(L),
     [compile_mod(I, L) || I <- Mods].
 
@@ -13,14 +14,20 @@ get_mods(L) ->
       elib1_misc:remove_duplicates(
 	[M || {{fundef,{M,_,_}},_} <- L])).
 
+get_locals(L) ->
+    [F || {attributes,A} <- L,{attribute,_,local,L1} <- A, F <- L1].
+
 compile_mod(Mod, L) ->
+    Exclude = get_locals(L),
     Funcs = get_funcs(Mod, L),
+    Funcs2 = [{F,A,B} || {F,A,B} <- Funcs, not lists:member({F,A}, Exclude)],
     put(current_mod, Mod),
     SMod = atom_to_list(Mod),
     File = "gen/" ++ SMod ++ ".erl",
     {ok,Stream} = file:open(File, [write]),
-    io:format(Stream, "-module(~s).\n-compile(export_all).~n~n",[SMod]),
-    [compile_func(I, Stream) || I<- Funcs],
+    HeaderStr = [erl_pp:attribute(I) || I <- get(attributes)],
+    io:format(Stream, "~s~n",[HeaderStr]),
+    [compile_func(I, Stream) || I<- Funcs2],
     file:close(Stream),
     io:format("Created:~s~n",[File]).
 

@@ -1,4 +1,4 @@
--module(erl2).
+-module(erld).
 -export([batch/1, dump/0, clone/2, local99/3, local2/4, make_mods/0, run/1]).
 -import(lists, [reverse/1, reverse/2]).
 
@@ -29,8 +29,8 @@
 
 batch([A]) ->
     F = atom_to_list(A),
-    run0(F),
     os:cmd("rm ge/*.erl"),
+    run0(F),
     init:stop().
 
 %% ho ho
@@ -39,6 +39,7 @@ run0(F) ->
     put(current_module, shell),
     put(defining_modules, []),
     put(current_function, none),
+    put(attributes,[]),
     run(F).
 
 run(F) ->
@@ -51,7 +52,10 @@ run(F) ->
 		    io:format("Error:~p~n",[Why]),
 		    io:format("Compile failed~n");
 		_Other ->
-		    io:format("Success~n")
+		    io:format("Success~n"),
+		    %% reverse the attributes
+		    put(attributes, lists:reverse(get(attributes))),
+		    erl2_codegen:start(get())
 	    end;
 	error ->
 	    io:format("Parse failed~n")
@@ -116,31 +120,36 @@ consult(F) ->
 s(S) ->
     parse_file(S, 1, false, []).
 
+add([],L) -> L;
+add(X, L) -> [X|L].
+ 
 parse_file([], _, true, _) ->
     error;
 parse_file([], _, false, L) ->
     {ok, reverse(L)};
 parse_file(Str, Ln, Errors, L) ->
     case string2exprs(Str, Ln) of
-	{ok, Ln1, Exprs, Rest} ->
-	    parse_file(Rest, Ln1, Errors, reverse(Exprs, L));
+	{ok, Ln1, Thing, Rest} ->
+	    parse_file(Rest, Ln1, Errors, add(Thing, L));
 	{error, Ln1, Rest} ->
 	    parse_file(Rest, Ln1, true, L);
 	error ->
 	    parse_file([], Ln, true, L)
     end.
 
+wrap({expr, E}) -> E;
+wrap(X) -> {form, X}.
+
 string2exprs(Str, Ln) ->
     case erl_scan:tokens([], Str, Ln) of
 	{done, {ok, Toks, Ln1}, Rest} ->
 	    Toks1 = munge_toks(Toks),
-	    io:format("Toks1=~p~n",[Toks1]),
-	    case erl_parse:parse_exprs(Toks1) of
-		{ok, Exprs} ->
-		    %% io:format("Exprs=~p~n",[Exprs]),
-		    {ok, Ln1, Exprs, Rest};
-		{error,{Line,Mod,Arg}} ->
-		    EStr = io_lib:format("~s",[apply(Mod,format_error,[Arg])]),
+	    %% io:format("Toks1=~p~n",[Toks1]),
+	    case erl_parse:parse_any(Toks1) of
+		{ok, Thing} ->
+		    {ok, Ln1, wrap(Thing), Rest};
+		{error,{Line,Mod,Args}} ->
+		    EStr = io_lib:format("~s",[apply(Mod,format_error,[Args])]),
 		    Msg = lists:flatten(EStr),
 		    io:format("~n***PARSE ERROR in line:~w ~s~n", [Line,Msg]),
 		    {error, Ln1, Rest}
@@ -159,6 +168,7 @@ string2exprs(Str, Ln) ->
 	    error
     end.
  
+
 %% WHY must I munge spec?? - is the tokeniser wrong?
 
 munge_toks([{atom,N,def}|T])        -> [{def,N}|munge_toks(T)];
@@ -210,8 +220,3 @@ deep_replace(X, _, _) ->
 
 dump() ->
     dump("all.gen", get()).
-
-
-    
-
-
