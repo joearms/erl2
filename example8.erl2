@@ -1,19 +1,14 @@
 -module(example7).
-
 -export([test/1]).
-
 -local([fac/1]).
 
 fac(0) -> 1;
 fac(N) -> N*fac(N-1).
 
-Fac50 = fac(50).
-
-io:format("Fac50=~p~n",[Fac50]).
-
 120 = fac(4).
 
-io:format("Unit test succeeds~n").
+Fac20 = fac(20).
 
 test(X) ->
-    X*Fac50.
+    X*Fac20.
+

@@ -1,2 +1,2 @@
 #!/bin/sh
-erl -noshell -pa '.' -s erl2 batch $1 
+erl -noshell -pa '.' -s erld batch $1 

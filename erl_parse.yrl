@@ -77,7 +77,6 @@ Expect 2.
 
 Rootsymbol form.
 
-form -> expr dot      : {expr, '$1'}.
 form -> attribute dot : '$1'.
 form -> function dot  : '$1'.
 form -> rule dot      : '$1'.

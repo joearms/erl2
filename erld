@@ -1,2 +1,0 @@
-#!/bin/sh
-erl -noshell -pa '.' -s erld batch $1 

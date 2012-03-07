@@ -421,18 +421,8 @@ expr({remote,_,_,_}, _Bs, _Lf, _Ef, _RBs) ->
 expr({value,_,Val}, Bs, _Lf, _Ef, RBs) ->    % Special case straight values.
     ret_expr(Val, Bs, RBs);
 %% Additions by JA
-expr({form,{function,_Ln,Name,Args,Clauses}}, Bs0, _,_,_) ->
-    {clause,_,H,_,_} = hd(Clauses),
-    Arity = length(H),
-    D = define_function(Name, Arity, Clauses, Bs0),
-    {value, D, Bs0};
-expr({form,{attribute,_,module,XX}=A}, Bs0, _, _, _) ->
-    put(defining_modules,[XX]),
-    put(current_module,XX),
-    add_attribute(A),
-    {value, true, Bs0};
-expr({form,{attribute,_,_,_}=A}, Bs0, _,_,_) ->
-    add_attribute(A),
+expr({form,F}, Bs0,_,_,_) ->
+    eval_form(F, Bs0),
     {value, true, Bs0};
 expr({define1,{function,_Ln,Name,Arity, Clauses}}, Bs0, _, _, _) ->
     D = define_function(Name, Arity, Clauses, Bs0),
@@ -488,6 +478,18 @@ expr({deleteFunc, {atom,Ln,Mod},{atom,_,Func},{integer,_,Arity}},
 
 expr({call99,X,Args}, Bs0, _, _, _) ->
     erl2:local99(X, Args, Bs0).
+
+eval_form({function,_Ln,Name,Arity,Clauses}, Bs0) ->
+    define_function(Name, Arity, Clauses, Bs0);
+eval_form({attribute,_,module,XX}=A, Bs0) ->
+    put(defining_modules,[XX]),
+    put(current_module,XX),
+    add_attribute(A),
+    {value, true, Bs0};
+
+eval_form({attribute,_,_,_}=A, Bs0) ->
+    add_attribute(A),
+    {value, true, Bs0}.
 
 find_maxline(LC) ->
     put('$erl_eval_max_line', 0),
@@ -1354,6 +1356,10 @@ funcname({Ran,L}, X) ->
 funcname(none, X) ->
     element(1, X).
 
+
+resolve({call,Ln1,{remote,_,{atom,_,this},{atom,Ln2,Func}},Args}) ->
+    Args1 = resolve(Args),
+    {call,Ln1,{atom,Ln2,Func},Args1};
 resolve({call,Ln1,{remote,_,{atom,_,Mod},{atom,_,_,Func}}=Z,Args}) ->
     Args1 = resolve(Args),
     case lists:member(Mod, get(defining_modules)) of

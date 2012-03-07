@@ -1,0 +1,2 @@
+#!/bin/sh
+erl -noshell -pa '.' -s erl2 batch $1 

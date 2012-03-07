@@ -1,0 +1,33 @@
+-module(example9).
+
+-export([f1/1, f2/1, f3/1, f4/1]).
+
+beginFunc f1/1 end.
+
+  f1(X) -> foo(X).
+  foo(X) -> {foo1, X}.
+
+endFunc.
+
+{foo1,a} = f1(a).
+
+beginFunc f2/1 end.
+
+  f2(X) -> foo(X).
+  foo(X) -> {foo2, X}.
+
+endFunc.
+
+{foo2,a} = f2(a).
+
+beginFunc f3/1 f4/1 end.
+  f3(X) -> foo(this:f1(X)),this:foo(X).
+  f4(X) -> foo(example9:f2(X)).
+  foo(X) -> {foo3, X}.
+endFunc.
+
+%%{foo3, {foo1,a}} = f3(a).
+%%{foo3, {foo2,a}} = f4(a).
+
+
+

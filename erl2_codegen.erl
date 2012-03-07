@@ -25,11 +25,17 @@ compile_mod(Mod, L) ->
     SMod = atom_to_list(Mod),
     File = "gen/" ++ SMod ++ ".erl",
     {ok,Stream} = file:open(File, [write]),
-    HeaderStr = [erl_pp:attribute(I) || I <- get(attributes)],
+    Attrs = get(attributes),
+    Attrs1 = remove_locals(Attrs),
+    HeaderStr = [erl_pp:attribute(I) || I <- Attrs1],
     io:format(Stream, "~s~n",[HeaderStr]),
     [compile_func(I, Stream) || I<- Funcs2],
     file:close(Stream),
     io:format("Created:~s~n",[File]).
+
+remove_locals([{attribute,_,local,_}|T]) -> remove_locals(T);
+remove_locals([H|T])                     -> [H|remove_locals(T)];
+remove_locals([])                        -> [].
 
 get_funcs(Mod, L) ->
     lists:sort(elib1_misc:remove_duplicates(
@@ -43,7 +49,8 @@ compile_func({Name,Arity,{Clauses, Bs}}, Stream) ->
     %% Step 1 - make a binding list
     Bs1 = [Var || {Var,_} <- Bs],
     Clauses1 = [transform_clauses(I, Bs1, Bs) || I <- Clauses],
-    F = {function,1,Name,Arity,Clauses1},
+    F = {function,1,fix_funcname(Name),Arity,Clauses1},
+    %% io:format("Form=~p~n",[F]),
     Str = erl_pp:form(F),
     io:format(Stream, "~s~n",[Str]).
 
@@ -65,14 +72,24 @@ xform_body(X) ->
     deep_replace(X, fun fix_99/1).
 
 fix_99({call99,{Mod,Func},Args}) ->
+    %% io:format("Mod=~p Func=~p~n",[Mod,Func]),
+    Func1 = fix_funcname(Func),
     case get(current_mod) of
 	Mod ->
-	    {yes, {call,-1,{atom,-1,Func}, Args}};
+	    {yes, {call,-1,{atom,-1,Func1}, Args}};
 	_ ->
-	    {yes, {call,-1,{remote, {atom,-1,Mod},{atom,-1,Func}}, Args}}
+	    {yes, {call,-1,{remote, {atom,-1,Mod},{atom,-1,Func1}}, Args}}
     end;
 fix_99(_) ->
     no.
+
+fix_funcname({N,A}) ->
+    list_to_atom("gen_" ++ i2s(N) ++ "_" ++ atom_to_list(A)); 
+fix_funcname(X) ->
+    X.
+
+i2s(N) ->
+    integer_to_list(N).
 
 deep_replace(X, F) ->
     case F(X) of

@@ -1,5 +1,6 @@
 -module(erld).
--export([batch/1, dump/0, clone/2, local99/3, local2/4, make_mods/0, run/1]).
+-export([batch/1, dump/0, clone/2, local99/3, local2/4, make_mods/0, run/1,
+	 string2exprs/1, test/0]).
 -import(lists, [reverse/1, reverse/2]).
 
 %% Copyright Joe Armstrong. 2011 All Rights Reserved.
@@ -27,6 +28,9 @@
 %%  runs an erl2 script - if the program passes all tests
 %%  a number of erlang modules will be created.
 
+test() ->
+    string2exprs("a(). ").
+
 batch([A]) ->
     F = atom_to_list(A),
     os:cmd("rm ge/*.erl"),
@@ -47,7 +51,8 @@ run(F) ->
 	{ok, Exprs} ->
 	    dump("gen/exprs.tmp", Exprs),
 	    B0 = erl_eval:new_bindings(),
-	    case (catch erl_eval:exprs(Exprs, B0, {eval, fun local/3})) of
+	    Exprs1 = [remap(I) || I<- Exprs],
+	    case (catch erl_eval:exprs(Exprs1, B0, {eval, fun local/3})) of
 		{'EXIT', Why} ->
 		    io:format("Error:~p~n",[Why]),
 		    io:format("Compile failed~n");
@@ -60,6 +65,9 @@ run(F) ->
 	error ->
 	    io:format("Parse failed~n")
     end.
+
+remap({expr, X}) -> X;
+remap({form, X}) -> {form,X}.
 
 dump(File, L) ->
     {ok, S} = file:open(File, [write]),
@@ -115,13 +123,18 @@ eval1([], B, _) ->
 
 consult(F) ->
     {ok, Bin} = file:read_file(F),
+    Bin1 = pre_expand(Bin),
+    io:format("Bin1=~p~n",[Bin1]),
+    file:write_file("tmp.tmp",[Bin1]),
+    io:format("created tmp.tmp~n"),
     s(binary_to_list(Bin)).
 
 s(S) ->
     parse_file(S, 1, false, []).
 
-add([],L) -> L;
-add(X, L) -> [X|L].
+add([[]|T], L) -> add(T, L);
+add([H|T],L)   -> add(T, [H|L]);
+add([], L)     -> L.
  
 parse_file([], _, true, _) ->
     error;
@@ -130,6 +143,7 @@ parse_file([], _, false, L) ->
 parse_file(Str, Ln, Errors, L) ->
     case string2exprs(Str, Ln) of
 	{ok, Ln1, Thing, Rest} ->
+	    %% io:format("THing=~p~n",[Thing]),
 	    parse_file(Rest, Ln1, Errors, add(Thing, L));
 	{error, Ln1, Rest} ->
 	    parse_file(Rest, Ln1, true, L);
@@ -137,41 +151,11 @@ parse_file(Str, Ln, Errors, L) ->
 	    parse_file([], Ln, true, L)
     end.
 
-wrap({expr, E}) -> E;
-wrap(X) -> {form, X}.
 
-string2exprs(Str, Ln) ->
-    case erl_scan:tokens([], Str, Ln) of
-	{done, {ok, Toks, Ln1}, Rest} ->
-	    Toks1 = munge_toks(Toks),
-	    %% io:format("Toks1=~p~n",[Toks1]),
-	    case erl_parse:parse_any(Toks1) of
-		{ok, Thing} ->
-		    {ok, Ln1, wrap(Thing), Rest};
-		{error,{Line,Mod,Args}} ->
-		    EStr = io_lib:format("~s",[apply(Mod,format_error,[Args])]),
-		    Msg = lists:flatten(EStr),
-		    io:format("~n***PARSE ERROR in line:~w ~s~n", [Line,Msg]),
-		    {error, Ln1, Rest}
-	    end;
-	{more, Cont} ->
-	    %% give it an eof
-	    case erl_scan:tokens(Cont, eof, Ln) of
-		{done, {eof,_}, eof} ->
-		    {ok, Ln, [], []};
-		{done, _, eof} ->
-		    io:format("***SCAN Error DOT WS missing at eof~n"),
-		    error
-	    end;
-	Other ->
-	    io:format("~n***SCAN ERROR:~p~n", [Other]),
-	    error
-    end.
- 
 
 %% WHY must I munge spec?? - is the tokeniser wrong?
 
-munge_toks([{atom,N,def}|T])        -> [{def,N}|munge_toks(T)];
+%%munge_toks([{atom,N,def}|T])        -> [{def,N}|munge_toks(T)];
 munge_toks([{atom,N,defExports}|T]) -> [{defExports,N}|munge_toks(T)];
 munge_toks([{atom,N,defMods}|T])    -> [{defMods,N}|munge_toks(T)];
 munge_toks([{atom,N,spec}|T])       -> [{spec,N}|munge_toks(T)];
@@ -220,3 +204,81 @@ deep_replace(X, _, _) ->
 
 dump() ->
     dump("all.gen", get()).
+
+string2exprs(Str) ->
+    string2exprs(Str, 1).
+
+string2exprs(Str, Ln) ->
+    case erl_scan:tokens([], Str, Ln) of
+	{done, {ok, Toks, Ln1}, Rest} ->
+	    Toks1 = munge_toks(Toks),
+	    %% io:format("Toks1=~p~n",[Toks1]),
+	    case erl_parse:parse_form(Toks1) of
+		{ok, Form} ->
+		    {ok, Ln1, [{form, Form}], Rest};
+		{error,{Line1,Mod1,Args1}} ->
+		    case erl_parse:parse_exprs(Toks1) of
+			{ok, Exprs} ->
+			    E1 = [{expr,I} || I <- Exprs],
+			    {ok, Ln1, E1, Rest};
+			{error,{Line,Mod,Args}} ->
+			    EStr = lists:flatten(
+				     io_lib:format(
+				       "~s",[apply(Mod,format_error,[Args])])),
+				io:format("~n***PARSE ERROR in line:~w ~s~n", 
+					  [Line,EStr]),
+			    {error, Ln1, Rest}
+		    end
+	    end;
+	{more, Cont} ->
+	    %% give it an eof
+	    case erl_scan:tokens(Cont, eof, Ln) of
+		{done, {eof,_}, eof} ->
+		    {ok, Ln, [], []};
+		{done, _, eof} ->
+		    io:format("***SCAN Error DOT WS missing at eof~n"),
+		    error
+	    end;
+	Other ->
+	    io:format("~n***SCAN ERROR:~p~n", [Other]),
+	    error
+    end.
+
+%% pre_expand
+
+pre_expand(B) ->
+    list_to_binary(pre_expand("\n" ++ binary_to_list(B), [])).
+
+pre_expand("\nbegin{" ++ T, L) ->
+    {Term, T1} = get_terminator(T, []),
+    {Block, T2} = get_block(T1, Term, []),
+    pre_expand(T2, [block(Term, Block)|L]);
+pre_expand([H|T], L) ->
+    pre_expand(T, [H|L]);
+pre_expand([], L) ->
+    lists:reverse(L).
+
+get_terminator("}" ++ T, L) -> {reverse(L), T};
+get_terminator([H|T], L)    -> get_terminator(T, [H|L]);
+get_terminator([], L)       -> {reverse(L), []}.
+
+get_block("\nend{" ++ T, Term, L) ->
+    {Term1, T1} = get_terminator(T, []),
+    case Term1 of
+	Term ->
+	    {reverse(L), T1};
+	_ ->
+	    get_block("end{" ++ T, Term, [$\n|L])
+    end;
+get_block([H|T], Term, L) ->
+    get_block(T, Term, [H|L]);
+get_block([], _, L) ->
+    {reverse(L), []}.
+
+block(Tag, Str) ->
+    lists:flatten(io_lib:format("erld:add_block(~p,~p).~n",[Tag,list_to_binary(Str)])).
+
+    
+
+
+
