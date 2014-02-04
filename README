@@ -4,6 +4,12 @@ Erl2 - a program generator for a new dialect of erlang
 
 Download from: https://github.com/joearms/erl2.git
 
+Dependencies:
+
+erl2 require utilities from the elib1 repository, please download and install following the instructions provide at:
+
+https://github.com/joearms/elib1.git
+
 Please note: This is a prototype and is not of production quality
 
 Rational
