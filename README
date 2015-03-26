@@ -6,7 +6,7 @@ Download from: https://github.com/joearms/erl2.git
 
 Please note: This is a prototype and is not of production quality
 
-Rational
+Rationale
 
 There are two types of thing in Erlang. Forms and Expressions 
 and the two don't mix.
@@ -30,7 +30,7 @@ Suppose we add a new syntactic form:
 
     def fac = fun(0) -> 1; fun(N) -> N*fac(N-1) end.
 
-But we define this to be an expression with a side effect. It's value
+But we define this to be an expression with a side effect. Its value
 can be anything we like (say true). But it has a side effect. The side effect
 is to define the factorial function.
 
@@ -321,7 +321,7 @@ Note2: If unit tests fail then no code is generated.
           2) compile
           3) nothing - don't need to do the unit tests -
 
-Note3: Erl2 has no macros - they are not necessay 
+Note3: Erl2 has no macros - they are not necessary 
        the section called metaprogramming above explains this
 
 Have fun ...
